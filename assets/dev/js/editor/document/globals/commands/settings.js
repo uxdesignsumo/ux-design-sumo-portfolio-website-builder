@@ -70,14 +70,6 @@ export class Settings extends CommandHistoryDebounce {
 			container.render();
 		} );
 	}
-
-	onAfterRun( args, result ) {
-		super.onAfterRun( args, result );
-
-		const { containers = [ args.container ] } = args;
-
-		DocumentCache.updateSettingsByContainers( containers, { __globals__: args.settings } );
-	}
 }
 
 export default Settings;
