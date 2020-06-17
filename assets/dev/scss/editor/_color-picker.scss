@@ -34,42 +34,9 @@
 			font-size: 13px;
 		}
 	}
-
-	&__swatch-placeholder {
-		border: 1px dashed $editor-lighter;
-	}
-
-	&__dropping-area {
-		margin-top: 10px;
-		padding: 15px;
-		border: 1px dashed $editor-lightest;
-		text-align: center;
-		color: $editor-dark;
-		display: none;
-
-		&.elementor-active {
-			border-color: $editor-light;
-
-			i {
-				color: $editor-warning;
-			}
-		}
-
-		i {
-			font-size: 15px;
-		}
-
-		&__drag-to-delete {
-			margin-top: 10px;
-		}
-
-		.elementor-color-picker__swatch-placeholder {
-			display: none;
-		}
-	}
 }
 
-.e-no-value-color {
+.e-color__no-value {
 
 	.pickr {
 		background: linear-gradient(135deg, #ffffff 46%,#ff3030 50%,#ffffff 54%);
@@ -99,22 +66,6 @@
 
 	&-interaction {
 		padding-bottom: 10px;
-	}
-
-	&-swatch {
-
-		&.pcr-active {
-
-			~ .elementor-color-picker__add-swatch {
-				background-color: $editor-lightest;
-				pointer-events: none;
-				box-shadow: none;
-
-				i {
-					color: #fff;
-				}
-			}
-		}
 	}
 
 	.elementor-control-dynamic-switcher {

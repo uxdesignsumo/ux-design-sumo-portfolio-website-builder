@@ -11,54 +11,31 @@ export default class extends ControlBaseDataView {
 	}
 
 	applySavedValue() {
-		if ( ! this.colorPicker ) {
-			this.initPicker();
-		}
+		const currentValue = this.getCurrentValue();
 
-		const globalKey = this.getGlobalValue();
-
-		if ( globalKey ) {
-			$e.data.get( globalKey )
-				.then( ( globalData ) => {
-					this.updateClassGlobalValue( globalData.data.value );
-					this.applyCurrentValue();
-				} );
-		} else {
-			this.applyCurrentValue();
-		}
-	}
-
-	applyCurrentValue() {
 		if ( this.colorPicker ) {
-			this.colorPicker.picker.setColor( this.getControlValue() );
+			// Set the picker color without triggering the 'onChange' event
+			const parsedColor = this.colorPicker.picker._parseLocalColor( currentValue );
+
+			this.colorPicker.picker.setHSVA( ...parsedColor.values, false );
 		} else {
 			this.initPicker();
 		}
 
-		if ( this.globalValue ) {
-			this.setGlobalDisplay();
-		}
-	}
-
-	updateClassGlobalValue( color ) {
-		this.globalValue = color;
-	}
-
-	getControlValue() {
-		return this.globalValue || super.getControlValue();
+		this.$el.toggleClass( 'e-no-value-color', ! currentValue );
 	}
 
 	initPicker() {
-		const controlValue = this.getControlValue(),
-			options = {
+		const options = {
 			picker: {
 				el: this.ui.pickerContainer[ 0 ],
-				default: controlValue,
+				default: this.getCurrentValue(),
 				components: {
 					opacity: this.model.get( 'alpha' ),
 				},
 			},
-			global: this.model.get( 'global' ),
+			// Don't create the add button in the Global Settings color pickers
+			addButton: this.model.get( 'global' )?.active,
 			onChange: () => this.onPickerChange(),
 			onClear: () => this.onPickerClear(),
 			onAddButtonClick: () => this.onAddGlobalButtonClick(),
@@ -66,67 +43,55 @@ export default class extends ControlBaseDataView {
 
 		this.colorPicker = new ColorPicker( options );
 
+		this.$pickerButton = jQuery( this.colorPicker.picker.getRoot().button );
+
 		this.addTipsyToPickerButton();
 
-		this.$pickerButton.on( 'click', () => {
-			if ( this.getGlobalValue() ) {
-				this.triggerMethod( 'unsetGlobalValue' );
-
-				if ( ! this.getControlValue() ) {
-					this.setOptions( 'clearButtonActive', false );
-				}
-			}
-		} );
+		this.$pickerButton.on( 'click', () => this.onPickerButtonClick() );
 
 		jQuery( this.colorPicker.picker.getRoot().root ).addClass( 'elementor-control-unit-1 elementor-control-tag-area' );
 
-		if ( ! this.getGlobalValue() && ! this.getControlValue() ) {
-			this.$el.addClass( 'e-no-value-color' );
+		if ( ! this.getGlobalKey() && ! this.getControlValue() ) {
+			this.$el.addClass( 'e-color__no-value' );
 		}
 	}
 
-	hidePopover() {
-		this.colorPicker.picker.hide();
-	}
-
 	addTipsyToPickerButton() {
-		this.$pickerButton = jQuery( this.colorPicker.picker.getRoot().button );
-
 		this.$pickerButton.tipsy( {
-			title: () => this.getControlValue() ? this.colorPicker.getColorData().value : '',
+			title: () => this.getCurrentValue() || '',
 			offset: 4,
 			gravity: () => 's',
 		} );
 	}
 
 	getGlobalMeta() {
-		const colorData = this.colorPicker.getColorData();
-
 		return {
-			commandName: 'globals/colors',
+			commandName: this.getCommand(),
 			key: this.model.get( 'name' ),
-			title: colorData.title,
-			value: colorData.value,
+			title: this.colorPicker.getColorTitle(),
 		};
 	}
 
 	getAddGlobalConfirmMessage( globalColors ) {
-		const color = this.colorPicker.getColorData(),
+		const colorTitle = this.colorPicker.getColorTitle(),
+			currentValue = this.getCurrentValue(),
 			$message = jQuery( '<div>', { class: 'e-global-confirm-message' } ),
 			$messageText = jQuery( '<div>' ),
 			$inputWrapper = jQuery( '<div>', { class: 'e-global-confirm-input-wrapper' } ),
-			$colorPreview = jQuery( '<div>', { class: 'e-global-color__preview', style: 'background-color: ' + color.value } ),
+			$colorPreview = jQuery( '<div>', { class: 'e-global__color-preview', style: 'background-color: ' + color.value } ),
 			$input = jQuery( '<input>', { type: 'text', name: 'global-name', placeholder: color.title } )
 				.val( color.title );
 
 		// Check if the color already exists in the global colors, and display an appropriate message
 		Object.values( globalColors ).forEach( ( globalColor ) => {
-			let messageContent = elementor.translate( 'global_color_confirm_text' );
+			let messageContent;
 
-			if ( color.value === globalColor.value ) {
+			if ( currentValue === globalColor.value ) {
 				messageContent = elementor.translate( 'global_color_already_exists' );
-			} else if ( color.title === globalColor.title ) {
+			} else if ( colorTitle === globalColor.title ) {
 				messageContent = elementor.translate( 'global_color_name_already_exists' );
+			} else {
+				messageContent = elementor.translate( 'global_color_confirm_text' );
 			}
 
 			$messageText.html( messageContent );
@@ -143,12 +108,13 @@ export default class extends ControlBaseDataView {
 		return 'globals/colors';
 	}
 
+	// globalData is received from the Data API
 	createGlobalItemMarkup( globalData ) {
-		const $color = jQuery( '<div>', { class: 'e-global-preview e-global-color', 'data-global-id': globalData.id } ),
-			$colorPreview = jQuery( '<div>', { class: 'e-global-color__preview', style: 'background-color: ' + globalData.value } ),
-			$colorTitle = jQuery( '<span>', { class: 'e-global-color__title' } )
+		const $color = jQuery( '<div>', { class: 'e-global__preview-item e-global__color', 'data-global-id': globalData.id } ),
+			$colorPreview = jQuery( '<div>', { class: 'e-global__color-preview', style: 'background-color: ' + globalData.value } ),
+			$colorTitle = jQuery( '<span>', { class: 'e-global__color-title' } )
 				.html( globalData.title ),
-			$colorHex = jQuery( '<span>', { class: 'e-global-color__hex' } )
+			$colorHex = jQuery( '<span>', { class: 'e-global__color-hex' } )
 				.html( globalData.value );
 
 		$color.append( $colorPreview, $colorTitle, $colorHex );
@@ -156,15 +122,15 @@ export default class extends ControlBaseDataView {
 		return $color;
 	}
 
-	// TODO: Replace placeholders with real global colors
 	async getGlobalsList() {
-		const result = await $e.data.get( 'globals/colors' );
+		const result = await $e.data.get( this.getCommand() );
 
 		return result.data;
 	}
 
+	// Create the markup for the colors in the global select dropdown
 	buildGlobalsList( globalColors ) {
-		const $globalColorsPreviewContainer = jQuery( '<div>', { class: 'e-global-previews-container' } );
+		const $globalColorsPreviewContainer = jQuery( '<div>', { class: 'e-global__preview-items-container' } );
 
 		Object.values( globalColors ).forEach( ( color ) => {
 			if ( ! color.value ) {
@@ -181,81 +147,41 @@ export default class extends ControlBaseDataView {
 		return $globalColorsPreviewContainer;
 	}
 
-	setOptions( key, value ) {
-		const changedState = super.setOptions( key, value );
-
-		if ( ! changedState ) {
-			return;
-		}
-
-		if ( 'addButtonActive' === key ) {
-			this.colorPicker.toggleToolState( '$addButton', value );
-		} else if ( 'clearButtonActive' === key ) {
-			this.colorPicker.toggleToolState( '$customClearButton', value );
-		}
-
-		return this.options;
-	}
-
-	// Change the color picker value without triggering Pickr's 'change' event
-	setGlobalDisplay() {
-		if ( ! this.globalValue ) {
-			this.$el.addClass( 'e-no-value-color' );
-
-			return;
-		}
-
-		const parsedColor = this.colorPicker.picker._parseLocalColor( this.globalValue );
-
-		this.colorPicker.picker.setHSVA( ...parsedColor.values, false );
-	}
-
 	onPickerChange() {
 		this.setValue( this.colorPicker.getColor() );
 
-		if ( this.getGlobalValue() ) {
-			this.triggerMethod( 'unsetGlobalValue' );
-		}
-
 		if ( ! this.isCustom ) {
-			this.triggerMethod( 'valueTypeChange' );
+			this.triggerMethod( 'value:type:change' );
+
+			this.colorPicker.toggleClearButtonState( true );
+
+			if ( this.$el.hasClass( 'e-no-value-color' ) ) {
+				this.$el.removeClass( 'e-no-value-color' );
+			}
 
 			this.isCustom = true;
-		}
-
-		if ( ! this.model.get( 'global' ) ) {
-			this.setOptions( 'addButtonActive', true );
-		}
-
-		this.setOptions( 'clearButtonActive', true );
-
-		if ( this.$el.hasClass( 'e-no-value-color' ) ) {
-			this.$el.removeClass( 'e-no-value-color' );
 		}
 	}
 
 	onPickerClear() {
-		if ( this.getGlobalValue() ) {
-			this.triggerMethod( 'unsetGlobalValue' );
-		} else {
-			this.isCustom = false;
-
-			this.triggerMethod( 'valueTypeChange' );
-		}
+		this.isCustom = false;
 
 		this.setValue( '' );
 
+		this.triggerMethod( 'value:type:change' );
+
 		this.$el.addClass( 'e-no-value-color' );
 
-		if ( ! this.model.get( 'global' ) ) {
-			this.setOptions( 'addButtonActive', false );
+		this.colorPicker.toggleClearButtonState( false );
+	}
+
+	onPickerButtonClick() {
+		if ( this.getGlobalKey() ) {
+			this.triggerMethod( 'unset:global:value' );
 		}
 
-		this.setOptions( 'clearButtonActive', false );
-
-		this.$el
-			.find( '.e-global-selected' )
-			.html( elementor.translate( 'default' ) );
+		// If there is a value in the control, set the clear button to active, if not, deactivate it
+		this.colorPicker.toggleClearButtonState( !! this.getCurrentValue() );
 	}
 
 	onAddGlobalButtonClick() {

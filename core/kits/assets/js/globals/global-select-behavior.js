@@ -5,24 +5,18 @@ export default class GlobalControlSelect extends Marionette.Behavior {
 		};
 	}
 
-	getGlobalValue() {
-		return this.view.container.globals.get( this.view.model.get( 'name' ) );
-	}
-
 	// This method exists because the UI elements are printed after controls are already rendered
 	registerUiElements() {
 		const popoverWidget = this.popover.getElements( 'widget' );
 
-		this.ui.globalPreviewsContainer = popoverWidget.find( '.e-global-previews-container' );
-		this.ui.globalPreviewItems = popoverWidget.find( '.e-global-preview' );
-		this.ui.manageGlobalsButton = popoverWidget.find( '.e-global-manage-button' );
-		this.ui.globalControlSelect = this.$el.find( '.e-global-select' );
-		this.ui.globalControlSelected = this.$el.find( '.e-global-selected' );
+		this.ui.globalPreviewsContainer = popoverWidget.find( '.e-global__preview-items-container' );
+		this.ui.globalPreviewItems = popoverWidget.find( '.e-global__preview-item' );
+		this.ui.manageGlobalsButton = popoverWidget.find( '.e-global__manage-button' );
 	}
 
 	// This method exists because the UI elements are printed after controls are already rendered
 	registerEvents() {
-		this.ui.globalPreviewsContainer.on( 'click', '.e-global-preview', async ( event ) => await this.applySavedGlobalValue( event.currentTarget.dataset.globalId ) );
+		this.ui.globalPreviewsContainer.on( 'click', '.e-global__preview-item', ( event ) => this.applySavedGlobalValue( event.currentTarget.dataset.globalId ) );
 		this.ui.globalControlSelect.on( 'click', ( event ) => this.toggleSelect( event ) );
 		this.ui.manageGlobalsButton.on( 'click', () => {
 			$e.run( 'panel/global/open' ).then( () => $e.route( 'panel/global/colors-and-typography' ) );
@@ -30,39 +24,35 @@ export default class GlobalControlSelect extends Marionette.Behavior {
 		} );
 	}
 
-	async applySavedGlobalValue( globalId ) {
-		this.setGlobalValue( globalId );
+	fetchGlobalValue() {
+		return $e.data.get( this.view.getGlobalKey() )
+			.then( ( globalData ) => {
+				this.view.globalValue = globalData.data.value;
 
-		const globalMeta = this.view.getGlobalMeta(),
-			globalResult = await $e.data.get( globalMeta.commandName, { id: globalId } ),
-			globalData = globalResult.data;
+				this.onValueTypeChange();
 
-		// TODO: HANDLE CASE WHERE GLOBAL IS NOT FOUND (e.g. WAS DELETED)
-		if ( this.view.$el.hasClass( 'e-no-value-color' ) ) {
-			this.view.$el.removeClass( 'e-no-value-color' );
-		}
+				this.view.applySavedValue();
 
-		if ( this.view.updateClassGlobalValue ) {
-			this.view.updateClassGlobalValue( globalData.value );
-		}
-
-		if ( this.view.setGlobalDisplay ) {
-			this.view.setGlobalDisplay();
-		}
-
-		this.view.setOptions( 'addButtonActive', false );
-		this.view.setOptions( 'clearButtonActive', true );
-
-		this.toggleSelect();
+				return globalData.data;
+			} );
 	}
 
+	applySavedGlobalValue( globalId ) {
+		this.setGlobalValue( globalId );
+
+		this.fetchGlobalValue();
+
+		this.popover.hide();
+	}
+
+	// Update the behavior's components
 	onValueTypeChange() {
 		this.updateSelectBoxText();
 	}
 
 	updateSelectBoxText() {
 		const value = this.view.getControlValue(),
-			globalValue = this.getGlobalValue();
+			globalValue = this.view.getGlobalKey();
 
 		let selectBoxText = '';
 
@@ -88,6 +78,11 @@ export default class GlobalControlSelect extends Marionette.Behavior {
 
 		this.initGlobalPopover();
 
+		if ( this.view.getGlobalKey() ) {
+			// This setTimeout is here to overcome an issue with a requestAnimationFrame that runs in the Pickr library
+			setTimeout( () => this.fetchGlobalValue(), 50 );
+		}
+
 		this.$el.addClass( 'elementor-control-global' );
 	}
 
@@ -100,10 +95,10 @@ export default class GlobalControlSelect extends Marionette.Behavior {
 	}
 
 	buildGlobalPopover() {
-		const $popover = jQuery( '<div>', { class: 'e-global-popover-container' } ),
-			$popoverTitle = jQuery( '<div>', { class: 'e-global-popover-title' } )
+		const $popover = jQuery( '<div>', { class: 'e-global__popover-container' } ),
+			$popoverTitle = jQuery( '<div>', { class: 'e-global__popover-title' } )
 				.html( '<i class="eicon-info-circle"></i>' + this.getOption( 'popoverTitle' ) ),
-			$manageGlobalPresetsLink = jQuery( '<div>', { class: 'e-global-manage-button' } )
+			$manageGlobalPresetsLink = jQuery( '<div>', { class: 'e-global__manage-button' } )
 				.html( this.getOption( 'manageButtonText' ) + '<i class="eicon-cog"></i>' );
 
 		$popover.append( $popoverTitle, $manageGlobalPresetsLink );
@@ -112,18 +107,21 @@ export default class GlobalControlSelect extends Marionette.Behavior {
 	}
 
 	printGlobalSelectBox() {
-		const $globalSelectBox = jQuery( '<div>', { class: 'e-global-select' } ),
-			$selectedGlobal = jQuery( '<span>', { class: 'e-global-selected' } )
+		const $globalSelectBox = jQuery( '<div>', { class: 'e-global__select-box' } ),
+			$selectedGlobal = jQuery( '<span>', { class: 'e-global__select-box-text' } )
 				.html( elementor.translate( 'default' ) );
 
 		$globalSelectBox.append( $selectedGlobal, '<i class="eicon-caret-down"></i>' );
 
 		this.$el.find( '.elementor-control-input-wrapper' ).prepend( $globalSelectBox );
+
+		this.ui.globalControlSelect = $globalSelectBox;
+		this.ui.globalControlSelected = $selectedGlobal;
 	}
 
 	initGlobalPopover() {
 		this.popover = elementorCommon.dialogsManager.createWidget( 'simple', {
-			className: 'e-global-control-popover',
+			className: 'e-global__popover',
 			message: this.buildGlobalPopover(),
 			effects: {
 				show: 'show',
@@ -141,23 +139,12 @@ export default class GlobalControlSelect extends Marionette.Behavior {
 		} );
 
 		// Render the list of globals and append them to the Globals popover
-		// TODO: FIND BEST WAY TO CACHE THE GLOBALS LIST SO THE DB FETCH RUNS ONLY ONCE ON PAGE LOAD
 		this.view.getGlobalsList()
 			.then(
 			( globalsList ) => {
 				this.addGlobalsListToPopover( globalsList );
 
 				this.registerUiElementsAndEvents();
-
-				const globalValue = this.getGlobalValue();
-
-				// If there is a global value applied to the control, set the global select box text to display its name
-				if ( globalValue ) {
-					this.updateSelectBoxText();
-				}
-			},
-			() => {
-				// TODO: What happens if the request fails??
 			} );
 
 		this.createGlobalInfoTooltip();
@@ -166,7 +153,7 @@ export default class GlobalControlSelect extends Marionette.Behavior {
 	addGlobalsListToPopover( globalsList ) {
 		const $globalsList = this.view.buildGlobalsList( globalsList );
 
-		this.popover.getElements( 'widget' ).find( '.e-global-popover-title' ).after( $globalsList );
+		this.popover.getElements( 'widget' ).find( '.e-global__popover-title' ).after( $globalsList );
 	}
 
 	registerUiElementsAndEvents() {
@@ -181,7 +168,7 @@ export default class GlobalControlSelect extends Marionette.Behavior {
 	// in the onAddGlobalButtonClick() method in the color and typography global controls
 	onAddGlobalToList( $confirmMessage ) {
 		this.confirmNewGlobalModal = elementorCommon.dialogsManager.createWidget( 'confirm', {
-			className: 'e-global-confirm-add',
+			className: 'e-global__confirm-add',
 			headerMessage: this.getOption( 'newGlobalConfirmTitle' ),
 			message: $confirmMessage,
 			strings: {
@@ -191,37 +178,32 @@ export default class GlobalControlSelect extends Marionette.Behavior {
 			hide: {
 				onBackgroundClick: false,
 			},
-			onConfirm: () => {
-				const globalMeta = this.view.getGlobalMeta();
-
-				globalMeta.title = this.globalNameInput.val();
-
-				this.createNewGlobal( globalMeta )
-					.then( ( result ) => {
-						const $globalPreview = this.view.createGlobalItemMarkup( result.data );
-
-						this.ui.globalPreviewsContainer.append( $globalPreview );
-					} );
-			},
+			onConfirm: () => this.onConfirmNewGlobal(),
 			onShow: () => {
-				// If the control creating the new global has an open popover, make sure it closes when the modal appears
-				if ( this.view.hidePopover ) {
-					this.view.hidePopover();
-				}
-
 				// Put focus on the naming input
-				this.globalNameInput = this.confirmNewGlobalModal.getElements( 'widget' ).find( 'input' ).focus();
+				this.ui.globalNameInput = this.confirmNewGlobalModal.getElements( 'widget' ).find( 'input' ).focus();
 			},
 		} );
 
 		this.confirmNewGlobalModal.show();
 	}
 
-	createNewGlobal( globalMeta ) {
-		const container = this.view.container;
+	onConfirmNewGlobal() {
+		const globalMeta = this.view.getGlobalMeta();
 
+		globalMeta.title = this.ui.globalNameInput.val();
+
+		this.createNewGlobal( globalMeta )
+			.then( ( result ) => {
+				const $globalPreview = this.view.createGlobalItemMarkup( result.data );
+
+				this.ui.globalPreviewsContainer.append( $globalPreview );
+			} );
+	}
+
+	createNewGlobal( globalMeta ) {
 		return $e.run( globalMeta.commandName + '/create', {
-			container,
+			container: this.view.container,
 			setting: globalMeta.key, // group control name
 			title: globalMeta.title,
 		} )
@@ -236,18 +218,12 @@ export default class GlobalControlSelect extends Marionette.Behavior {
 		let command = '';
 		const settings = {};
 
-		if ( this.getGlobalValue() ) {
+		if ( this.view.getGlobalKey() ) {
 			// If a global text style is already active, switch them without disabling globals
 			command = 'document/globals/settings';
 		} else {
 			// If the active text style is NOT a global, enable globals and apply the selected global
 			command = 'document/globals/enable';
-
-			// If the control didn't have a global active, and the control has a toggle button (e.g. group controls),
-			// make sure activating the global disables the control's toggle.
-			if ( this.view.resetControlValue ) {
-				this.view.resetControlValue();
-			}
 		}
 
 		// colors / typography
@@ -258,32 +234,26 @@ export default class GlobalControlSelect extends Marionette.Behavior {
 			container: this.view.options.container,
 			settings: settings,
 		} );
-
-		this.onValueTypeChange(); // control value still old.
 	}
 
 	// The unset method is triggered from the controls via triggerMethod
 	onUnsetGlobalValue() {
-		const globalData = this.view.getGlobalMeta(),
-			settings = {};
-
-		settings[ globalData.key ] = '';
+		const globalMeta = this.view.getGlobalMeta();
 
 		$e.run( 'document/globals/disable', {
 			container: this.view.container,
-			settings: settings,
+			settings: { [ globalMeta.key ]: '' },
 		} )
 			.then( () => {
-				this.updateSelectBoxText();
-				this.view.setOptions( 'addButtonActive', false );
+				this.onValueTypeChange();
 			} );
 	}
 
 	createGlobalInfoTooltip() {
-		const $infoIcon = this.popover.getElements( 'widget' ).find( '.e-global-popover-title .eicon-info-circle' );
+		const $infoIcon = this.popover.getElements( 'widget' ).find( '.e-global-popover__title .eicon-info-circle' );
 
 		this.globalInfoTooltip = elementorCommon.dialogsManager.createWidget( 'simple', {
-			className: 'e-global-info-tooltip',
+			className: 'e-global__info-tooltip',
 			message: this.getOption( 'tooltipText' ),
 			effects: {
 				show: 'show',

@@ -26,10 +26,6 @@ export default class ControlPopoverStarterView extends ControlChooseView {
 		this.$el.next( '.elementor-controls-popover' ).toggle();
 	}
 
-	resetControlValue() {
-		this.ui.resetInput.trigger( 'click' );
-	}
-
 	getCommand() {
 		return 'globals/typography';
 	}
@@ -48,35 +44,19 @@ export default class ControlPopoverStarterView extends ControlChooseView {
 				property = property.replace( 'styles_', '' );
 			}
 
-			switch ( property ) {
-				case 'font_family':
-					cssObject.fontFamily = value;
-					break;
-				case 'font_size':
-					// Set max size for Text Style previews in the select popover so it isn't too big
-					if ( value.size > 40 ) {
-						value.size = 40;
-					}
-					cssObject.fontSize = value.size + value.unit;
-					break;
-				case 'font_weight':
-					cssObject.fontWeight = value;
-					break;
-				case 'transform':
-					cssObject.transform = value;
-					break;
-				case 'font_style':
-					cssObject.fontStyle = value;
-					break;
-				case 'text_decoration':
-					cssObject.textDecoration = value;
-					break;
-				case 'line_height':
-					cssObject.lineHeight = value;
-					break;
-				case 'letter_spacing':
-					cssObject.letterSpacing = value;
-					break;
+			if ( 'font_size' === property ) {
+				// Set max size for Text Style previews in the select popover so it isn't too big
+				if ( value.size > 40 ) {
+					value.size = 40;
+				}
+				cssObject.fontSize = value.size + value.unit;
+			} else {
+				// Convert the snake case property names into camel case to match their corresponding CSS property names
+				if ( property.includes( '_' ) ) {
+					property = property.replace( /([_][a-z])/g, ( result ) => result.toUpperCase().replace( '_', '' ) );
+				}
+
+				cssObject[ property ] = value;
 			}
 		} );
 
@@ -84,9 +64,7 @@ export default class ControlPopoverStarterView extends ControlChooseView {
 	}
 
 	createGlobalItemMarkup( globalData ) {
-		globalData.key = this.model.get( 'name' );
-
-		const $textStylePreview = jQuery( '<div>', { class: 'e-global-preview e-global-text-style', 'data-global-id': globalData.id } );
+		const $textStylePreview = jQuery( '<div>', { class: 'e-global__preview-item e-global__text-style', 'data-global-id': globalData.id } );
 
 		$textStylePreview
 			.html( globalData.title )
@@ -95,10 +73,9 @@ export default class ControlPopoverStarterView extends ControlChooseView {
 		return $textStylePreview;
 	}
 
-	// TODO: REPLACE THIS PLACEHOLDER OBJECT WITH VALUES OF THE TYPOGRAPHY CONTROLS
 	getGlobalMeta() {
 		return {
-			commandName: 'globals/typography',
+			commandName: this.getCommand(),
 			key: this.model.get( 'name' ),
 			title: elementor.translate( 'new_text_style' ),
 		};
@@ -106,10 +83,10 @@ export default class ControlPopoverStarterView extends ControlChooseView {
 
 	getAddGlobalConfirmMessage() {
 		const globalData = this.getGlobalMeta(),
-			$message = jQuery( '<div>', { class: 'e-global-confirm-message' } ),
+			$message = jQuery( '<div>', { class: 'e-global__confirm-message' } ),
 			$messageText = jQuery( '<div>' )
 				.html( elementor.translate( 'global_typography_confirm_text' ) ),
-			$inputWrapper = jQuery( '<div>', { class: 'e-global-confirm-input-wrapper' } ),
+			$inputWrapper = jQuery( '<div>', { class: 'e-global__confirm-input-wrapper' } ),
 			$input = jQuery( '<input>', { type: 'text', name: 'global-name', placeholder: globalData.title } )
 				.val( globalData.title );
 
@@ -120,15 +97,14 @@ export default class ControlPopoverStarterView extends ControlChooseView {
 		return $message;
 	}
 
-	// TODO: REPLACE THIS PLACEHOLDER OBJECT WITH THE ACTUAL GLOBALS ONCE THEY EXIST
 	async getGlobalsList() {
-		const result = await $e.data.get( 'globals/typography' );
+		const result = await $e.data.get( this.getCommand() );
 
 		return result.data;
 	}
 
 	buildGlobalsList( globalTextStyles ) {
-		const $globalTypographyContainer = jQuery( '<div>', { class: 'e-global-previews-container' } );
+		const $globalTypographyContainer = jQuery( '<div>', { class: 'e-global__preview-items-container' } );
 
 		Object.values( globalTextStyles ).forEach( ( textStyle ) => {
 			// Only build markup if the text style is valid
@@ -140,25 +116,6 @@ export default class ControlPopoverStarterView extends ControlChooseView {
 		} );
 
 		return $globalTypographyContainer;
-	}
-
-	toggleButtonListener( button, on ) {
-		let callback = {};
-
-		switch ( button ) {
-			case '$addButton':
-				callback = () => this.onAddButtonClick();
-				break;
-			case '$clearButton':
-				callback = () => this.picker._clearColor();
-				break;
-		}
-
-		if ( on ) {
-			this[ button ].on( 'click', callback );
-		} else {
-			this[ button ].off( 'click', '**' );
-		}
 	}
 
 	onAddGlobalButtonClick() {
